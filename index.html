@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marginalia</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:ital,wght@0,400;0,500;0,700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1115;
+    --surface: #1a1d24;
+    --surface-hover: #22262f;
+    --border: #2a2e38;
+    --text: #e4e4e7;
+    --text-dim: #71717a;
+    --text-faint: #52525b;
+    --accent: #f97316;
+    --accent-dim: rgba(249, 115, 22, 0.12);
+    --accent-glow: rgba(249, 115, 22, 0.25);
+    --green: #22c55e;
+    --green-dim: rgba(34, 197, 94, 0.12);
+    --red: #ef4444;
+    --red-dim: rgba(239, 68, 68, 0.12);
+    --blue: #3b82f6;
+    --blue-dim: rgba(59, 130, 246, 0.12);
+    --purple: #a855f7;
+    --purple-dim: rgba(168, 85, 247, 0.12);
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  body::before {
+    content: ''; position: fixed; inset: 0; opacity: 0.03; pointer-events: none; z-index: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .container { max-width: 860px; margin: 0 auto; padding: 40px 24px 120px; position: relative; z-index: 1; }
+
+  /* Header */
+  .header { margin-bottom: 48px; animation: fadeUp 0.6s ease; }
+  .header h1 { font-family: 'DM Mono', monospace; font-size: 28px; font-weight: 500; color: var(--accent); letter-spacing: -0.5px; }
+  .header p { color: var(--text-dim); margin-top: 8px; font-size: 15px; line-height: 1.5; }
+  .kbd { display: inline-block; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text-dim); }
+
+  /* Views */
+  .view { display: none; }
+  .view.active { display: block; animation: fadeUp 0.4s ease; }
+
+  /* Editor */
+  .editor-wrap { border: 1.5px solid var(--border); border-radius: var(--radius); background: var(--surface); overflow: hidden; transition: border-color 0.2s; }
+  .editor-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+  .editor-container { display: flex; max-height: 60vh; overflow: hidden; }
+  .line-numbers { flex-shrink: 0; width: 52px; background: var(--bg); padding: 16px 0; text-align: right; user-select: none; overflow: hidden; border-right: 1px solid var(--border); }
+  .line-numbers .ln { display: block; padding: 0 12px 0 0; font-family: 'DM Mono', monospace; font-size: 13px; line-height: 22px; color: var(--text-faint); }
+  .editor-textarea { flex: 1; padding: 16px; background: transparent; color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px; line-height: 22px; border: none; outline: none; resize: none; overflow-y: auto; white-space: pre; tab-size: 2; min-height: 320px; }
+  .editor-textarea::placeholder { color: var(--text-faint); }
+  .editor-stats { display: flex; gap: 16px; padding: 8px 16px; border-top: 1px solid var(--border); font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-faint); }
+
+  /* Mode chooser */
+  .mode-chooser { display: flex; gap: 16px; margin-top: 24px; }
+  .mode-card {
+    flex: 1; padding: 24px; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius);
+    cursor: pointer; transition: all 0.2s; text-align: center;
+  }
+  .mode-card:hover { border-color: var(--accent); background: var(--surface-hover); transform: translateY(-2px); }
+  .mode-card .mode-icon { font-size: 32px; margin-bottom: 12px; }
+  .mode-card .mode-title { font-family: 'DM Mono', monospace; font-size: 15px; font-weight: 500; color: var(--text); margin-bottom: 6px; }
+  .mode-card .mode-desc { font-size: 13px; color: var(--text-dim); line-height: 1.4; }
+  .mode-card:disabled, .mode-card.disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  .mode-card:disabled:hover, .mode-card.disabled:hover { border-color: var(--border); background: var(--surface); transform: none; }
+
+  /* TTS config */
+  .tts-config { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 20px; margin-top: 20px; }
+  .tts-config summary { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--purple); cursor: pointer; user-select: none; }
+  .tts-config summary:hover { color: var(--text); }
+  .tts-config-body { margin-top: 16px; }
+  .tts-mode-tabs { display: flex; gap: 0; margin-bottom: 16px; border-radius: var(--radius-sm); overflow: hidden; border: 1.5px solid var(--border); }
+  .tts-tab { flex: 1; padding: 10px 16px; background: var(--bg); color: var(--text-dim); border: none; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; text-align: center; }
+  .tts-tab.active { background: var(--purple-dim); color: var(--purple); }
+  .tts-tab:hover:not(.active) { color: var(--text); }
+  .tts-panel { display: none; }
+  .tts-panel.active { display: block; }
+  .api-key-row { display: flex; gap: 10px; align-items: center; }
+  .api-key-input { flex: 1; padding: 10px 14px; background: var(--bg); border: 1.5px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px; outline: none; }
+  .api-key-input:focus { border-color: var(--purple); }
+  .api-key-status { font-family: 'DM Mono', monospace; font-size: 11px; padding: 6px 12px; border-radius: 999px; white-space: nowrap; }
+  .api-key-status.valid { background: var(--green-dim); color: var(--green); }
+  .api-key-status.invalid { background: var(--red-dim); color: var(--red); }
+  .api-key-status.checking { background: var(--blue-dim); color: var(--blue); }
+  .el-voice-select, .voice-select { width: 100%; margin-top: 12px; padding: 10px 14px; background: var(--bg); border: 1.5px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none; cursor: pointer; }
+  .api-note { margin-top: 10px; font-size: 11px; color: var(--text-faint); font-family: 'DM Mono', monospace; line-height: 1.5; }
+  .api-note a { color: var(--purple); text-decoration: none; }
+  .api-note a:hover { text-decoration: underline; }
+  .tts-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 500; letter-spacing: 0.5px; vertical-align: middle; margin-left: 8px; }
+  .tts-badge.el { background: var(--purple-dim); color: var(--purple); }
+  .tts-badge.browser { background: var(--surface); color: var(--text-faint); border: 1px solid var(--border); }
+
+  /* Reader view */
+  .reader-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); background: var(--surface); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+  .btn:hover { background: var(--surface-hover); border-color: var(--text-faint); }
+  .btn.primary { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+  .btn.primary:hover { background: var(--accent); color: #000; }
+  .btn.danger { background: var(--red-dim); border-color: var(--red); color: var(--red); }
+  .btn.green { background: var(--green-dim); border-color: var(--green); color: var(--green); }
+  .btn.green:hover { background: var(--green); color: #000; }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .slider-control { display: flex; align-items: center; gap: 8px; font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text-dim); }
+  .slider-control input[type="range"] { width: 80px; accent-color: var(--accent); }
+
+  .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-family: 'DM Mono', monospace; font-size: 12px; margin-left: auto; }
+  .status-pill.speaking { background: var(--accent-dim); color: var(--accent); }
+  .status-pill.paused { background: var(--blue-dim); color: var(--blue); }
+  .status-pill.recording { background: var(--red-dim); color: var(--red); }
+  .status-pill.reading { background: var(--green-dim); color: var(--green); }
+  .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.2s infinite; }
+
+  .progress-bar { width: 100%; height: 4px; background: var(--surface); border-radius: 2px; margin-bottom: 32px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s ease; box-shadow: 0 0 8px var(--accent-glow); }
+  .section-label { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text-faint); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1.5px; }
+  .section-label .line-ref { color: var(--accent); font-weight: 500; }
+
+  .reading-pane { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 28px 24px; margin-bottom: 24px; min-height: 120px; transition: border-color 0.3s; }
+  .reading-pane.speaking { border-color: var(--accent); box-shadow: 0 0 20px var(--accent-dim); }
+  .reading-pane.paused { border-color: var(--blue); box-shadow: 0 0 20px var(--blue-dim); }
+  .reading-pane.reading-mode { border-color: var(--green); box-shadow: 0 0 12px var(--green-dim); }
+  .reading-text { font-size: 16px; line-height: 1.8; color: var(--text); }
+  .reading-text h1, .reading-text h2, .reading-text h3 { font-family: 'DM Sans', sans-serif; color: var(--accent); margin: 0 0 12px 0; line-height: 1.3; }
+  .reading-text h1 { font-size: 22px; font-weight: 700; }
+  .reading-text h2 { font-size: 19px; font-weight: 600; }
+  .reading-text h3 { font-size: 17px; font-weight: 600; }
+  .reading-text p { margin: 0 0 12px 0; }
+  .reading-text p:last-child { margin-bottom: 0; }
+  .reading-text strong { color: var(--text); font-weight: 600; }
+  .reading-text em { font-style: italic; color: var(--text-dim); }
+  .reading-text code { font-family: 'DM Mono', monospace; font-size: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; color: var(--accent); }
+  .reading-text pre { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; margin: 12px 0; overflow-x: auto; }
+  .reading-text pre code { background: none; border: none; padding: 0; font-size: 13px; color: var(--text); }
+  .reading-text ul, .reading-text ol { margin: 8px 0 12px 24px; }
+  .reading-text li { margin-bottom: 4px; }
+  .reading-text a { color: var(--blue); text-decoration: none; }
+  .reading-text a:hover { text-decoration: underline; }
+  .reading-text blockquote { border-left: 3px solid var(--accent); padding-left: 14px; margin: 12px 0; color: var(--text-dim); font-style: italic; }
+  .reading-text hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+  .reading-text table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  .reading-text th, .reading-text td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; font-size: 14px; }
+  .reading-text th { background: var(--bg); font-weight: 600; color: var(--accent); }
+
+  /* Comment — always visible */
+  .comment-zone { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 24px; }
+  .comment-zone h3 { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--blue); margin-bottom: 12px; }
+  .comment-input-row { display: flex; gap: 10px; }
+  .comment-input { flex: 1; padding: 12px 16px; background: var(--bg); border: 1.5px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none; transition: border-color 0.2s; }
+  .comment-input:focus { border-color: var(--blue); }
+  .comment-input::placeholder { color: var(--text-faint); }
+  .mic-btn { width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--border); background: var(--surface); color: var(--text-dim); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
+  .mic-btn:hover { border-color: var(--red); color: var(--red); }
+  .mic-btn.recording { border-color: var(--red); background: var(--red-dim); color: var(--red); animation: pulse 1.2s infinite; }
+  .add-comment-btn { margin-top: 10px; padding: 10px 20px; background: var(--blue-dim); border: 1.5px solid var(--blue); color: var(--blue); border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+  .add-comment-btn:hover { background: var(--blue); color: #000; }
+
+  .comments-list { margin-top: 32px; }
+  .comments-list h3 { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 16px; }
+  .comment-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 18px; margin-bottom: 10px; animation: fadeUp 0.3s ease; }
+  .comment-item .comment-meta { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--accent); margin-bottom: 6px; }
+  .comment-item .comment-context { font-size: 13px; color: var(--text-faint); margin-bottom: 6px; font-style: italic; border-left: 2px solid var(--border); padding-left: 10px; white-space: pre-wrap; }
+  .comment-item .comment-text { font-size: 14px; color: var(--text); line-height: 1.5; }
+  .comment-item .delete-comment { float: right; background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; }
+  .comment-item .delete-comment:hover { color: var(--red); background: var(--red-dim); }
+
+  .summary-output { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 24px; font-family: 'DM Mono', monospace; font-size: 13px; line-height: 1.8; color: var(--text); white-space: pre-wrap; max-height: 500px; overflow-y: auto; }
+
+  .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 14px; cursor: pointer; margin-bottom: 24px; transition: color 0.15s; background: none; border: none; font-family: 'DM Sans', sans-serif; }
+  .back-link:hover { color: var(--text); }
+
+  .audio-controls { display: none; }
+  .audio-controls.active { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>// marginalia</h1>
+    <p>Paste a document. Read it section by section, or listen to it read aloud. Leave comments as you go.</p>
+  </div>
+
+  <!-- ═══ INPUT VIEW ═══ -->
+  <div id="inputView" class="view active">
+    <div class="editor-wrap">
+      <div class="editor-container">
+        <div class="line-numbers" id="lineNumbers"><span class="ln">1</span></div>
+        <textarea class="editor-textarea" id="docInput" placeholder="Paste your PRD, spec, or any long document here..." spellcheck="false"></textarea>
+      </div>
+      <div class="editor-stats">
+        <span id="lineCount">1 line</span>
+        <span id="charCount">0 chars</span>
+        <span id="wordCount">0 words</span>
+      </div>
+    </div>
+
+    <div class="mode-chooser">
+      <button class="mode-card disabled" id="modeRead" disabled>
+        <div class="mode-icon">&#128214;</div>
+        <div class="mode-title">Read &amp; Comment</div>
+        <div class="mode-desc">Step through sections at your own pace. Comment on each.</div>
+      </button>
+      <div class="mode-card disabled" id="modeListen">
+        <div class="mode-icon">&#127911;</div>
+        <div class="mode-title">Listen &amp; Comment</div>
+        <div class="mode-desc">Have it read aloud. Auto-pauses when you start typing.</div>
+
+        <!-- TTS config lives inside the listen card -->
+        <div class="tts-inline" id="ttsInline" style="display:none; margin-top:16px; text-align:left;" onclick="event.stopPropagation();">
+          <div class="tts-mode-tabs" style="margin-bottom:12px;">
+            <button class="tts-tab active" data-mode="browser">Browser (free)</button>
+            <button class="tts-tab" data-mode="elevenlabs">ElevenLabs <span class="tts-badge browser" id="ttsBadge" style="margin-left:4px;">BROWSER</span></button>
+          </div>
+          <div class="tts-panel active" id="panelBrowser">
+            <select class="voice-select" id="voiceSelect"></select>
+            <p class="api-note">Tip: On macOS, install enhanced voices via System Settings &rarr; Accessibility &rarr; Spoken Content &rarr; Manage Voices.</p>
+          </div>
+          <div class="tts-panel" id="panelElevenlabs">
+            <div class="api-key-row">
+              <input type="password" class="api-key-input" id="elApiKey" placeholder="Paste your ElevenLabs API key..." autocomplete="off">
+              <span class="api-key-status" id="elKeyStatus" style="display:none;"></span>
+            </div>
+            <select class="el-voice-select" id="elVoiceSelect" disabled><option>Enter API key to load voices...</option></select>
+            <p class="api-note">
+              Key is held in memory only &mdash; never stored.
+              <br>Uses Turbo v2.5 (0.5 credits/char) &mdash; 10k free credits &asymp; 20k characters.
+              <br>Get a free key at <a href="https://elevenlabs.io" target="_blank">elevenlabs.io</a>.
+            </p>
+          </div>
+          <button class="btn primary" id="listenStartBtn" style="width:100%; margin-top:14px;" disabled>Start listening</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ READER VIEW ═══ -->
+  <div id="readerView" class="view">
+    <button class="back-link" id="backBtn">&larr; Back to input</button>
+
+    <div class="reader-toolbar">
+      <button class="btn" id="prevBtn">&#9664; Prev</button>
+      <button class="btn" id="nextBtn">Next &#9654;</button>
+
+      <!-- Audio controls — only visible in listen mode -->
+      <div class="audio-controls" id="audioControls">
+        <button class="btn primary" id="playPauseBtn">&#9654; Play</button>
+        <div class="slider-control">
+          <span>Speed</span>
+          <input type="range" id="speedSlider" min="0.5" max="1.5" step="0.05" value="0.85">
+          <span id="speedLabel">0.85&times;</span>
+        </div>
+        <div class="slider-control" id="pitchControl">
+          <span>Pitch</span>
+          <input type="range" id="pitchSlider" min="0.5" max="1.5" step="0.05" value="0.95">
+          <span id="pitchLabel">0.95</span>
+        </div>
+      </div>
+
+      <button class="btn green" id="finishBtn">Finish &amp; Export</button>
+      <div id="statusPill" class="status-pill reading"><span class="dot"></span> Reading</div>
+    </div>
+
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div id="sectionLabel" class="section-label">Section 1 of 1</div>
+    <div class="reading-pane" id="readingPane">
+      <div class="reading-text" id="readingText"></div>
+    </div>
+
+    <!-- Comment — always visible -->
+    <div class="comment-zone" id="commentZone">
+      <h3 id="commentZoneTitle">&#128172; Leave a comment</h3>
+      <div class="comment-input-row">
+        <textarea class="comment-input" id="commentInput" placeholder="Type a comment on this section..." rows="4" style="min-height:100px; resize:vertical;"></textarea>
+        <button class="mic-btn" id="micBtn" title="Click to speak" style="align-self:flex-start; margin-top:4px;">&#127908;</button>
+      </div>
+      <button class="add-comment-btn" id="addCommentBtn">Add comment</button>
+    </div>
+
+    <div class="comments-list" id="commentsList" style="display:none;">
+      <h3>Your comments (<span id="commentCount">0</span>)</h3>
+      <div id="commentsContainer"></div>
+    </div>
+  </div>
+
+  <!-- ═══ SUMMARY VIEW ═══ -->
+  <div id="summaryView" class="view">
+    <button class="back-link" id="backToReader">&larr; Back to reader</button>
+    <h2 style="font-family:'DM Mono',monospace; font-size:18px; color:var(--accent); margin-bottom:20px;">Review complete</h2>
+    <p style="color:var(--text-dim); margin-bottom:20px; font-size:14px; line-height:1.6;">Your comments are anchored to line numbers and ready to paste into Claude.</p>
+    <pre class="summary-output" id="summaryOutput"></pre>
+    <button class="btn green" id="copyBtn" style="margin-top:16px;">&#128203; Copy to clipboard</button>
+  </div>
+</div>
+
+<script>
+  // ══════════════════════════════════════════
+  // STATE
+  // ══════════════════════════════════════════
+  let sections = [], currentSection = 0, comments = [];
+  let reviewMode = 'read'; // 'read' or 'listen'
+  let isPaused = true, isSpeaking = false;
+  let speechRate = 0.85, speechPitch = 0.95;
+  let selectedBrowserVoice = null;
+  let recognition = null, isRecording = false;
+  let sentenceQueue = [], currentSentenceIdx = 0, pauseBetweenSentences = 350;
+  let speechGeneration = 0;
+  let ttsMode = 'browser', elApiKey = '', elVoices = [], elSelectedVoiceId = '';
+  let currentAudio = null;
+
+  // ══════════════════════════════════════════
+  // DOM
+  // ══════════════════════════════════════════
+  const $ = id => document.getElementById(id);
+  const inputView = $('inputView'), readerView = $('readerView'), summaryView = $('summaryView');
+  const docInput = $('docInput'), lineNumbers = $('lineNumbers');
+  const lineCountEl = $('lineCount'), charCountEl = $('charCount'), wordCountEl = $('wordCount');
+  const modeRead = $('modeRead'), modeListen = $('modeListen');
+  const prevBtn = $('prevBtn'), nextBtn = $('nextBtn'), finishBtn = $('finishBtn');
+  const playPauseBtn = $('playPauseBtn'), audioControls = $('audioControls');
+  const readingText = $('readingText'), readingPane = $('readingPane');
+  const progressFill = $('progressFill'), sectionLabel = $('sectionLabel');
+  const commentZone = $('commentZone'), commentZoneTitle = $('commentZoneTitle');
+  const commentInput = $('commentInput'), micBtn = $('micBtn');
+  const addCommentBtn = $('addCommentBtn'), commentsList = $('commentsList');
+  const commentsContainer = $('commentsContainer'), commentCount = $('commentCount');
+  const summaryOutput = $('summaryOutput'), copyBtn = $('copyBtn');
+  const speedSlider = $('speedSlider'), speedLabel = $('speedLabel');
+  const pitchSlider = $('pitchSlider'), pitchLabel = $('pitchLabel'), pitchControl = $('pitchControl');
+  const statusPill = $('statusPill'), voiceSelect = $('voiceSelect');
+  const backBtn = $('backBtn'), backToReader = $('backToReader'), ttsBadge = $('ttsBadge');
+  const elApiKeyInput = $('elApiKey'), elKeyStatus = $('elKeyStatus'), elVoiceSelect = $('elVoiceSelect');
+
+  // ══════════════════════════════════════════
+  // LINE NUMBERS
+  // ══════════════════════════════════════════
+  function updateLineNumbers() {
+    const text = docInput.value, lines = text.split('\n');
+    lineNumbers.innerHTML = lines.map((_, i) => `<span class="ln">${i + 1}</span>`).join('');
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    lineCountEl.textContent = `${lines.length} line${lines.length !== 1 ? 's' : ''}`;
+    charCountEl.textContent = `${text.length} chars`;
+    wordCountEl.textContent = `${words} word${words !== 1 ? 's' : ''}`;
+    const hasContent = !!text.trim();
+    modeRead.disabled = !hasContent; modeRead.classList.toggle('disabled', !hasContent);
+    modeListen.classList.toggle('disabled', !hasContent);
+    if ($('listenStartBtn')) $('listenStartBtn').disabled = !hasContent;
+  }
+  docInput.addEventListener('scroll', () => { lineNumbers.scrollTop = docInput.scrollTop; });
+  docInput.addEventListener('input', updateLineNumbers);
+  updateLineNumbers();
+
+  // ══════════════════════════════════════════
+  // TTS TABS
+  // ══════════════════════════════════════════
+  document.querySelectorAll('.tts-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tts-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      ttsMode = tab.dataset.mode;
+      $('panelBrowser').classList.toggle('active', ttsMode === 'browser');
+      $('panelElevenlabs').classList.toggle('active', ttsMode === 'elevenlabs');
+      pitchControl.style.display = ttsMode === 'browser' ? 'flex' : 'none';
+      ttsBadge.textContent = (ttsMode === 'elevenlabs' && elApiKey) ? 'ELEVENLABS' : 'BROWSER';
+      ttsBadge.className = (ttsMode === 'elevenlabs' && elApiKey) ? 'tts-badge el' : 'tts-badge browser';
+    });
+  });
+
+  // ══════════════════════════════════════════
+  // BROWSER VOICES
+  // ══════════════════════════════════════════
+  const prefVoices = ['samantha','karen','daniel','moira','tessa','fiona','alex','allison','ava','susan','kate','serena','google uk english female','google uk english male','google us english'];
+  function voiceScore(v) {
+    const n = v.name.toLowerCase();
+    if (n.includes('premium')||n.includes('enhanced')||n.includes('natural')) return 100;
+    const i = prefVoices.findIndex(p => n.includes(p));
+    if (i >= 0) return 50 - i;
+    return v.localService ? 10 : 0;
+  }
+  function loadBrowserVoices() {
+    const voices = speechSynthesis.getVoices();
+    voiceSelect.innerHTML = '';
+    const en = voices.filter(v => v.lang.startsWith('en')).sort((a,b) => voiceScore(b) - voiceScore(a));
+    en.forEach((v,i) => {
+      const o = document.createElement('option'); o.value = i;
+      const badge = (v.name.toLowerCase().includes('premium')||v.name.toLowerCase().includes('enhanced')) ? ' \u2605' : '';
+      o.textContent = `${v.name}${badge} (${v.lang})`;
+      voiceSelect.appendChild(o);
+    });
+    if (en.length) selectedBrowserVoice = en[0];
+  }
+  speechSynthesis.onvoiceschanged = loadBrowserVoices;
+  loadBrowserVoices();
+  voiceSelect.addEventListener('change', () => {
+    const v = speechSynthesis.getVoices().filter(v => v.lang.startsWith('en')).sort((a,b) => voiceScore(b) - voiceScore(a));
+    selectedBrowserVoice = v[voiceSelect.selectedIndex] || null;
+  });
+
+  // ══════════════════════════════════════════
+  // ELEVENLABS KEY VALIDATION
+  // ══════════════════════════════════════════
+  let elDebounce = null;
+  elApiKeyInput.addEventListener('input', () => {
+    clearTimeout(elDebounce);
+    const key = elApiKeyInput.value.trim();
+    if (!key) { elApiKey=''; elKeyStatus.style.display='none'; elVoiceSelect.disabled=true; elVoiceSelect.innerHTML='<option>Enter API key...</option>'; ttsBadge.textContent='BROWSER'; ttsBadge.className='tts-badge browser'; return; }
+    elKeyStatus.style.display='inline-block'; elKeyStatus.textContent='Checking...'; elKeyStatus.className='api-key-status checking';
+    elDebounce = setTimeout(() => validateElKey(key), 600);
+  });
+  async function validateElKey(key) {
+    try {
+      const res = await fetch('https://api.elevenlabs.io/v1/voices', { method:'GET', headers:{ 'xi-api-key':key, 'Accept':'application/json' }});
+      if (!res.ok) { let m=`HTTP ${res.status}`; try{const e=await res.json();m+=`: ${e.detail?.message||e.detail||''}`;}catch(x){} elKeyStatus.textContent=`\u2717 ${m}`; elKeyStatus.className='api-key-status invalid'; elApiKey=''; return; }
+      const data = await res.json();
+      elApiKey = key; elVoices = data.voices || [];
+      elKeyStatus.textContent = `\u2713 Valid (${elVoices.length} voices)`; elKeyStatus.className = 'api-key-status valid';
+      ttsBadge.textContent = 'ELEVENLABS'; ttsBadge.className = 'tts-badge el';
+      elVoiceSelect.disabled = false; elVoiceSelect.innerHTML = '';
+      elVoices.forEach(v => { const o=document.createElement('option'); o.value=v.voice_id; const l=v.labels?Object.values(v.labels).join(', '):''; o.textContent=`${v.name}${l?' ('+l+')':''}`; elVoiceSelect.appendChild(o); });
+      const rachel = elVoices.find(v => v.name.toLowerCase().includes('rachel'));
+      elSelectedVoiceId = rachel ? rachel.voice_id : (elVoices[0]?.voice_id || '');
+      if (rachel) elVoiceSelect.value = rachel.voice_id;
+    } catch(e) {
+      elApiKey=''; elVoices=[];
+      const cors = e.message?.includes('Failed to fetch') || e.name==='TypeError';
+      elKeyStatus.textContent = cors ? '\u2717 CORS \u2014 use localhost server' : `\u2717 ${e.message||'Error'}`;
+      elKeyStatus.className='api-key-status invalid';
+    }
+  }
+  elVoiceSelect.addEventListener('change', () => { elSelectedVoiceId = elVoiceSelect.value; });
+
+  // ══════════════════════════════════════════
+  // DOCUMENT SPLITTING
+  // ══════════════════════════════════════════
+  function splitDocument(text) {
+    const lines = text.split('\n'), result = [];
+    let buffer='', bufStart=1, cur=1;
+    for (let i=0;i<lines.length;i++) {
+      const line=lines[i], blank=line.trim()==='', heading=/^#{1,3}\s/.test(line.trim());
+      if ((blank||heading)&&buffer.trim()) { result.push({text:buffer.trim(),startLine:bufStart,endLine:cur-1}); buffer=''; if(heading){buffer=line+'\n';bufStart=cur;}else{bufStart=cur+1;} }
+      else if(!blank){ if(!buffer.trim())bufStart=cur; buffer+=line+'\n'; }
+      cur++;
+    }
+    if(buffer.trim()) result.push({text:buffer.trim(),startLine:bufStart,endLine:lines.length});
+    const merged=[]; let p=null;
+    for(const s of result){ if(p&&p.text.length+s.text.length<200){p={text:p.text+'\n\n'+s.text,startLine:p.startLine,endLine:s.endLine};}else{if(p)merged.push(p);p={...s};} }
+    if(p)merged.push(p);
+    return merged.length ? merged : [{text,startLine:1,endLine:lines.length}];
+  }
+  function splitSentences(text) { return (text.match(/[^.!?:;\n]+[.!?:;\n]+[\s]*/g)||[text]).map(s=>s.trim()).filter(s=>s.length>0); }
+
+  // ══════════════════════════════════════════
+  // VIEWS & MODE SELECTION
+  // ══════════════════════════════════════════
+  function showView(v) { [inputView,readerView,summaryView].forEach(x=>x.classList.remove('active')); v.classList.add('active'); }
+
+  modeRead.addEventListener('click', () => { reviewMode='read'; startReview(); });
+
+  // Listen card: first click expands settings, start button begins
+  const ttsInline = $('ttsInline'), listenStartBtn = $('listenStartBtn');
+  modeListen.addEventListener('click', () => {
+    if (modeListen.classList.contains('disabled')) return;
+    ttsInline.style.display = ttsInline.style.display === 'none' ? 'block' : 'none';
+    listenStartBtn.disabled = !docInput.value.trim();
+  });
+  listenStartBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    reviewMode='listen'; startReview();
+  });
+
+  function startReview() {
+    sections = splitDocument(docInput.value.trim());
+    currentSection = 0; comments = []; isPaused = true;
+    renderComments(); showView(readerView); showSection(0);
+    // Configure UI for mode
+    audioControls.classList.toggle('active', reviewMode==='listen');
+    if (reviewMode==='read') {
+      readingPane.className = 'reading-pane reading-mode';
+      updateStatus('reading');
+    } else {
+      readingPane.className = 'reading-pane';
+      updatePlayPauseBtn();
+    }
+  }
+
+  // ══════════════════════════════════════════
+  // MARKDOWN RENDERER
+  // ══════════════════════════════════════════
+  function renderMarkdown(text) {
+    let html = text;
+
+    // Escape HTML first
+    html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    // Code blocks (``` ... ```)
+    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
+      `<pre><code>${code.trim()}</code></pre>`
+    );
+
+    // Inline code
+    html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+
+    // Headings
+    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+    // Horizontal rules
+    html = html.replace(/^---+$/gm, '<hr>');
+
+    // Blockquotes
+    html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+
+    // Bold + italic
+    html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+    // Links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+    // Unordered lists
+    html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+
+    // Ordered lists
+    html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+    // Wrap consecutive <li> not inside <ul> into <ol>
+    html = html.replace(/(<li>.*<\/li>\n?)+/g, (match) => {
+      if (match.includes('<ul>')) return match;
+      return `<ol>${match}</ol>`;
+    });
+
+    // Tables
+    html = html.replace(/^(\|.+\|)\n(\|[\-\s|:]+\|)\n((?:\|.+\|\n?)+)/gm, (_, header, sep, body) => {
+      const ths = header.split('|').filter(c => c.trim()).map(c => `<th>${c.trim()}</th>`).join('');
+      const rows = body.trim().split('\n').map(row => {
+        const tds = row.split('|').filter(c => c.trim()).map(c => `<td>${c.trim()}</td>`).join('');
+        return `<tr>${tds}</tr>`;
+      }).join('');
+      return `<table><thead><tr>${ths}</tr></thead><tbody>${rows}</tbody></table>`;
+    });
+
+    // Paragraphs — wrap remaining lines that aren't already in block elements
+    html = html.split('\n\n').map(block => {
+      const trimmed = block.trim();
+      if (!trimmed) return '';
+      if (/^<(h[1-3]|ul|ol|pre|blockquote|hr|table)/.test(trimmed)) return trimmed;
+      // Don't wrap if it's a single block element
+      if (/^<\w/.test(trimmed) && />\s*$/.test(trimmed)) return trimmed;
+      return `<p>${trimmed.replace(/\n/g, '<br>')}</p>`;
+    }).join('\n');
+
+    return html;
+  }
+
+  function showSection(idx) {
+    currentSection = idx;
+    const sec = sections[idx];
+    readingText.innerHTML = renderMarkdown(sec.text);
+    const lr = sec.startLine===sec.endLine ? `Line ${sec.startLine}` : `Lines ${sec.startLine}\u2013${sec.endLine}`;
+    sectionLabel.innerHTML = `Section ${idx+1} of ${sections.length} \u00b7 <span class="line-ref">${lr}</span>`;
+    progressFill.style.width = `${((idx+1)/sections.length)*100}%`;
+    commentZoneTitle.textContent = `\uD83D\uDCAC Comment on ${lr}`;
+  }
+
+  // ══════════════════════════════════════════
+  // SPEECH ENGINE
+  // ══════════════════════════════════════════
+  function useElevenLabs() { return ttsMode==='elevenlabs' && elApiKey && elSelectedVoiceId; }
+
+  function stopSpeech() {
+    speechGeneration++;
+    speechSynthesis.cancel();
+    if (currentAudio) { currentAudio.pause(); currentAudio.src=''; currentAudio=null; }
+    isSpeaking = false;
+  }
+
+  function startPlaying() {
+    stopSpeech();
+    isPaused = false;
+    updatePlayPauseBtn();
+    if (useElevenLabs()) {
+      const gen = speechGeneration;
+      speakElevenLabs(sections[currentSection].text, gen);
+    } else {
+      sentenceQueue = splitSentences(sections[currentSection].text);
+      currentSentenceIdx = 0;
+      speakNextBrowserSentence(speechGeneration);
+    }
+  }
+
+  function pausePlaying() {
+    stopSpeech();
+    isPaused = true;
+    updatePlayPauseBtn();
+    updateStatus('paused');
+    readingPane.className = 'reading-pane paused';
+  }
+
+  function updatePlayPauseBtn() {
+    if (isPaused) {
+      playPauseBtn.innerHTML = '&#9654; Play';
+      playPauseBtn.className = 'btn primary';
+    } else {
+      playPauseBtn.innerHTML = '&#9208; Pause';
+      playPauseBtn.className = 'btn danger';
+    }
+  }
+
+  playPauseBtn.addEventListener('click', () => {
+    if (isPaused) startPlaying(); else pausePlaying();
+  });
+
+  // Browser TTS
+  function speakNextBrowserSentence(gen) {
+    if (gen!==speechGeneration||isPaused) return;
+    if (currentSentenceIdx>=sentenceQueue.length) { isSpeaking=false; advanceSection(gen); return; }
+    const utt = new SpeechSynthesisUtterance(sentenceQueue[currentSentenceIdx]);
+    utt.rate=speechRate; utt.pitch=speechPitch;
+    if(selectedBrowserVoice) utt.voice=selectedBrowserVoice;
+    utt.onstart = () => { if(gen!==speechGeneration){speechSynthesis.cancel();return;} isSpeaking=true; updateStatus('speaking'); readingPane.className='reading-pane speaking'; };
+    utt.onend = () => { if(gen!==speechGeneration)return; currentSentenceIdx++; const j=Math.random()*100-50; setTimeout(()=>speakNextBrowserSentence(gen),Math.max(150,pauseBetweenSentences+j)); };
+    utt.onerror = () => { if(gen!==speechGeneration)return; currentSentenceIdx++; speakNextBrowserSentence(gen); };
+    speechSynthesis.speak(utt);
+  }
+
+  // ElevenLabs TTS
+  async function speakElevenLabs(text, gen) {
+    if(gen!==speechGeneration)return;
+    isSpeaking=true; updateStatus('speaking'); readingPane.className='reading-pane speaking';
+    try {
+      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${elSelectedVoiceId}`, {
+        method:'POST', headers:{'Content-Type':'application/json','xi-api-key':elApiKey},
+        body:JSON.stringify({ text, model_id:'eleven_turbo_v2_5', voice_settings:{stability:0.5,similarity_boost:0.75,speed:speechRate} })
+      });
+      if(gen!==speechGeneration)return;
+      if(!res.ok){ console.error('EL error',res.status); ttsMode='browser'; ttsBadge.textContent='BROWSER'; ttsBadge.className='tts-badge browser'; startPlaying(); return; }
+      const blob=await res.blob(); if(gen!==speechGeneration)return;
+      const url=URL.createObjectURL(blob), audio=new Audio(url); currentAudio=audio;
+      audio.onplay=()=>{ if(gen!==speechGeneration){audio.pause();return;} isSpeaking=true; updateStatus('speaking'); readingPane.className='reading-pane speaking'; };
+      audio.onended=()=>{ if(gen!==speechGeneration)return; URL.revokeObjectURL(url); currentAudio=null; isSpeaking=false; advanceSection(gen); };
+      audio.onerror=()=>{ if(gen!==speechGeneration)return; URL.revokeObjectURL(url); currentAudio=null; isSpeaking=false; advanceSection(gen); };
+      audio.play();
+    } catch(e){ if(gen!==speechGeneration)return; console.error('EL fetch error:',e); isSpeaking=false; updateStatus('paused'); }
+  }
+
+  function advanceSection(gen) {
+    if(gen!==speechGeneration)return;
+    if(currentSection<sections.length-1){ currentSection++; showSection(currentSection); setTimeout(()=>{ if(gen!==speechGeneration||isPaused)return; startPlaying(); },600); }
+    else { isPaused=true; updatePlayPauseBtn(); updateStatus('done'); readingPane.className='reading-pane'; }
+  }
+
+  // ══════════════════════════════════════════
+  // STATUS
+  // ══════════════════════════════════════════
+  function updateStatus(state) {
+    const s = statusPill;
+    if(state==='speaking'){ s.className='status-pill speaking'; s.innerHTML='<span class="dot"></span> Speaking'; }
+    else if(state==='paused'){ s.className='status-pill paused'; s.innerHTML='<span class="dot"></span> Paused'; }
+    else if(state==='recording'){ s.className='status-pill recording'; s.innerHTML='<span class="dot"></span> Recording'; }
+    else if(state==='reading'){ s.className='status-pill reading'; s.innerHTML='<span class="dot"></span> Reading'; }
+    else { s.className='status-pill reading'; s.innerHTML='Done \u2713'; }
+  }
+
+  // ══════════════════════════════════════════
+  // AUTO-PAUSE ON TYPING (listen mode)
+  // ══════════════════════════════════════════
+  commentInput.addEventListener('focus', () => {
+    if (reviewMode==='listen' && !isPaused) pausePlaying();
+  });
+
+  // ══════════════════════════════════════════
+  // KEYBOARD
+  // ══════════════════════════════════════════
+  document.addEventListener('keydown', (e) => {
+    if (!readerView.classList.contains('active')) return;
+    if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) {
+      if (e.code==='Enter' && !e.shiftKey && e.target===commentInput && commentInput.value.trim()) { e.preventDefault(); addComment(); }
+      return;
+    }
+    if (e.code==='Space') { e.preventDefault(); if(reviewMode==='listen'){ if(isPaused)startPlaying(); else pausePlaying(); } }
+  });
+
+  // ══════════════════════════════════════════
+  // NAVIGATION
+  // ══════════════════════════════════════════
+  prevBtn.addEventListener('click', () => {
+    if(currentSection>0){ if(reviewMode==='listen')stopSpeech(); isPaused=true; if(reviewMode==='listen')updatePlayPauseBtn(); showSection(currentSection-1); if(reviewMode==='read'){readingPane.className='reading-pane reading-mode';updateStatus('reading');} else{readingPane.className='reading-pane';updateStatus('paused');} }
+  });
+  nextBtn.addEventListener('click', () => {
+    if(currentSection<sections.length-1){ if(reviewMode==='listen')stopSpeech(); isPaused=true; if(reviewMode==='listen')updatePlayPauseBtn(); showSection(currentSection+1); if(reviewMode==='read'){readingPane.className='reading-pane reading-mode';updateStatus('reading');} else{readingPane.className='reading-pane';updateStatus('paused');} }
+  });
+
+  // ══════════════════════════════════════════
+  // COMMENTS
+  // ══════════════════════════════════════════
+  function addComment() {
+    const text=commentInput.value.trim(); if(!text)return;
+    const sec=sections[currentSection], preview=sec.text.length>100?sec.text.slice(0,100)+'\u2026':sec.text;
+    comments.push({ section:currentSection+1, startLine:sec.startLine, endLine:sec.endLine, sectionPreview:preview, text, timestamp:new Date().toLocaleTimeString() });
+    commentInput.value=''; renderComments();
+  }
+  addCommentBtn.addEventListener('click', addComment);
+  function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function renderComments() {
+    commentCount.textContent=comments.length;
+    if(!comments.length){ commentsList.style.display='none'; return; }
+    commentsList.style.display='block';
+    commentsContainer.innerHTML = comments.map((c,i) => {
+      const lr=c.startLine===c.endLine?`Line ${c.startLine}`:`Lines ${c.startLine}\u2013${c.endLine}`;
+      return `<div class="comment-item"><button class="delete-comment" onclick="deleteComment(${i})">\u2715</button><div class="comment-meta">${lr} \u00b7 Section ${c.section} \u00b7 ${c.timestamp}</div><div class="comment-context">${esc(c.sectionPreview)}</div><div class="comment-text">${esc(c.text)}</div></div>`;
+    }).join('');
+  }
+  window.deleteComment = (i) => { comments.splice(i,1); renderComments(); };
+
+  // ══════════════════════════════════════════
+  // MIC
+  // ══════════════════════════════════════════
+  if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    recognition=new SR(); recognition.continuous=false; recognition.interimResults=true; recognition.lang='en-GB';
+    recognition.onresult=(e)=>{ let t=''; for(let i=0;i<e.results.length;i++)t+=e.results[i][0].transcript; commentInput.value=t; };
+    recognition.onend=()=>{ isRecording=false; micBtn.classList.remove('recording'); };
+    recognition.onerror=()=>{ isRecording=false; micBtn.classList.remove('recording'); };
+    micBtn.addEventListener('click', ()=>{
+      if(reviewMode==='listen'&&!isPaused) pausePlaying();
+      if(isRecording){recognition.stop();}else{isRecording=true;micBtn.classList.add('recording');updateStatus('recording');recognition.start();}
+    });
+  } else { micBtn.style.display='none'; }
+
+  // ══════════════════════════════════════════
+  // SPEED & PITCH
+  // ══════════════════════════════════════════
+  speedSlider.addEventListener('input', ()=>{ speechRate=parseFloat(speedSlider.value); speedLabel.textContent=`${speechRate}\u00d7`; });
+  pitchSlider.addEventListener('input', ()=>{ speechPitch=parseFloat(pitchSlider.value); pitchLabel.textContent=speechPitch.toFixed(2); });
+
+  // ══════════════════════════════════════════
+  // FINISH
+  // ══════════════════════════════════════════
+  finishBtn.addEventListener('click', ()=>{
+    stopSpeech(); isPaused=true;
+    if(!comments.length){ if(confirm('No comments yet. Finish anyway?')){}else return; }
+    generateSummary(); showView(summaryView);
+  });
+  function generateSummary() {
+    if(!comments.length){ summaryOutput.textContent='No comments were recorded.'; return; }
+    let out=`I've just reviewed the document I shared with you. Here are my comments, referenced by line number:\n\n`;
+    comments.forEach((c,i)=>{
+      const lr=c.startLine===c.endLine?`Line ${c.startLine}`:`Lines ${c.startLine}\u2013${c.endLine}`;
+      out+=`---\n**Comment ${i+1}** \u2014 ${lr}\n> "${c.sectionPreview}"\n\n${c.text}\n\n`;
+    });
+    out+=`---\n\nPlease address each comment, referencing the line numbers, and suggest revisions where needed.`;
+    summaryOutput.textContent=out;
+  }
+  copyBtn.addEventListener('click', ()=>{
+    navigator.clipboard.writeText(summaryOutput.textContent).then(()=>{
+      copyBtn.textContent='\u2713 Copied!'; setTimeout(()=>copyBtn.innerHTML='&#128203; Copy to clipboard',2000);
+    });
+  });
+
+  // ══════════════════════════════════════════
+  // BACK
+  // ══════════════════════════════════════════
+  backBtn.addEventListener('click', ()=>{ stopSpeech(); isPaused=true; showView(inputView); });
+  backToReader.addEventListener('click', ()=>{ showView(readerView); });
+</script>
+</body>
+</html>
